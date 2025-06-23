@@ -3,12 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RNA Molecular Weight Calculator</title>
+    <title>RNA MW Calculator | DESTINA Genomics</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Inter', sans-serif;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        .main-container {
+            flex-grow: 1;
         }
         .custom-scrollbar::-webkit-scrollbar {
             width: 6px;
@@ -30,10 +36,10 @@
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
-
-    <div class="container mx-auto p-4 sm:p-6 lg:p-8">
+    <div class="main-container container mx-auto p-4 sm:p-6 lg:p-8">
         <header class="text-center mb-8">
-            <h1 class="text-3xl sm:text-4xl font-bold text-gray-900">RNA Molecular Weight Calculator</h1>
+            <h2 class="text-xl font-semibold text-gray-700">DESTINA Genomics</h2>
+            <h1 class="text-3xl sm:text-4xl font-bold text-gray-900 mt-1">RNA Molecular Weight Calculator</h1>
             <p class="mt-2 text-md text-gray-600">Calculate the molecular weight of single-stranded RNA with modifications.</p>
         </header>
 
@@ -48,9 +54,9 @@
                     <h3 class="font-semibold text-gray-700 mb-2">How to Format Your Sequence</h3>
                     <ul class="list-disc list-inside text-sm text-gray-600 space-y-1">
                         <li>Enter the 5' to 3' sequence using standard bases (A, U, C, G).</li>
-                        <li>The tool calculates for a 5'-monophosphate and 3'-hydroxyl terminus by default.</li>
-                        <li>For modified bases, use brackets `[]`. For example, for a Methyl-6-Adenosine, write `A[m6A]`.</li>
-                        <li>Make sure the symbol you use in the sequence (e.g., `m6A`) matches a symbol defined in the Modifications section.</li>
+                        <li>The calculation assumes a 5'-monophosphate and 3'-hydroxyl terminus.</li>
+                        <li>For modified bases, place the modification symbol in brackets `[]` *after* the base it modifies. Example: `A[m6A]`.</li>
+                        <li>Ensure the symbol used in the sequence (e.g., `m6A`) matches a symbol defined in the Modifications section.</li>
                         <li>Any characters not in `AUCG[]` or defined as a custom modification will be flagged as an error.</li>
                     </ul>
                 </div>
@@ -78,6 +84,7 @@
                 <!-- Custom Modifications -->
                 <div class="mt-6">
                     <h3 class="text-lg font-medium mb-3 text-gray-700">Custom Modifications</h3>
+                    <p class="text-xs text-gray-500 mb-3">Define the symbol (the part inside the brackets) and its mass change (delta).</p>
                     <div id="custom-modifications-list" class="space-y-3">
                         <!-- Custom mod fields will be added here -->
                     </div>
@@ -95,7 +102,7 @@
             <div id="success-message">
                 <div class="text-center mb-6">
                     <p class="text-lg text-gray-600">Total Molecular Weight (g/mol)</p>
-                    <p id="total-mw" class="text-4xl font-bold text-blue-600 mt-1">0.00</p>
+                    <p id="total-mw" class="text-4xl font-bold text-blue-600 mt-1">0.000</p>
                 </div>
                 <div>
                     <h3 class="text-xl font-semibold mb-3 text-gray-700">Breakdown:</h3>
@@ -118,6 +125,10 @@
             </div>
         </div>
     </div>
+    
+    <footer class="text-center p-4 text-sm text-gray-500">
+        <p>&copy; 2024 DESTINA Genomics. All rights reserved.</p>
+    </footer>
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
@@ -212,7 +223,7 @@
                 const { breakdown, unknownSymbols } = parseAndCalculate(sequence, modifications);
                 
                 if (unknownSymbols.size > 0) {
-                   throw new Error(`Unrecognized symbols in sequence: ${[...unknownSymbols].join(', ')}. Please define them as custom modifications.`);
+                   throw new Error(`Unrecognized symbols in sequence: ${[...unknownSymbols].join(', ')}. Please check your spelling or define them as custom modifications.`);
                 }
 
                 displayResults(breakdown);
@@ -242,15 +253,20 @@
                 const delta = parseFloat(deltaInput.value);
 
                 if (symbol && !isNaN(delta)) {
-                    if (mods[symbol]) {
-                        console.warn(`Warning: Custom modification symbol '${symbol}' overrides a common modification.`);
+                    if (MONOMER_WEIGHTS[symbol] || COMMON_MODS[symbol]) {
+                        // This prevents overriding standard bases or common mods with custom ones by mistake.
+                         throw new Error(`Cannot use '${symbol}' as a custom modification symbol as it is a reserved name.`);
                     }
                     mods[symbol] = delta;
+                } else if (symbol && isNaN(delta)) {
+                    // Catch case where user enters symbol but no delta
+                    throw new Error(`The mass delta for the custom modification '${symbol}' is not a valid number.`);
                 }
             });
             return mods;
         }
-
+        
+        // This function parses the sequence using a regular expression to handle text and bracketed content.
         function parseAndCalculate(sequence, modifications) {
             const breakdown = {
                 'A': { count: 0, mw: MONOMER_WEIGHTS.A },
@@ -259,25 +275,19 @@
                 'G': { count: 0, mw: MONOMER_WEIGHTS.G },
                 'Terminal Ends': { count: 1, mw: TERMINAL_WEIGHT }
             };
-
+            
+            // Regex to find either a standard base or a modification in brackets
+            const tokenRegex = /([AUCG])(\[([A-Z0-9]+)\])?|./g;
             const unknownSymbols = new Set();
-            let i = 0;
-            while (i < sequence.length) {
-                let char = sequence[i];
-                let modSymbol = '';
-                
-                if (sequence[i+1] === '[') {
-                    const closingBracketIndex = sequence.indexOf(']', i + 2);
-                    if (closingBracketIndex !== -1) {
-                        modSymbol = sequence.substring(i + 2, closingBracketIndex);
-                        i = closingBracketIndex; // Move index past the modification
-                    }
-                }
-                
-                if (MONOMER_WEIGHTS[char]) {
-                    breakdown[char].count++;
-                    if(modSymbol){
-                         if (modifications[modSymbol] !== undefined) {
+            let match;
+
+            while ((match = tokenRegex.exec(sequence.replace(/\s/g, ''))) !== null) {
+                const [fullMatch, base, modWithBrackets, modSymbol] = match;
+
+                if (base) { // Matched a standard base
+                    breakdown[base].count++;
+                    if (modSymbol) { // And it has a modification
+                        if (modifications[modSymbol] !== undefined) {
                             if (!breakdown[modSymbol]) {
                                 breakdown[modSymbol] = { count: 0, mw: modifications[modSymbol] };
                             }
@@ -286,13 +296,14 @@
                             unknownSymbols.add(modSymbol);
                         }
                     }
-                } else if (char.trim() !== '' && char !== '[' && char !== ']') {
-                    unknownSymbols.add(char);
+                } else if(fullMatch.trim() !== '') { // Matched something else
+                    unknownSymbols.add(fullMatch);
                 }
-                i++;
             }
+
             return { breakdown, unknownSymbols };
         }
+
 
         function displayResults(breakdown) {
             resultsBreakdownEl.innerHTML = '';
@@ -316,6 +327,5 @@
         }
     });
 </script>
-
 </body>
 </html>

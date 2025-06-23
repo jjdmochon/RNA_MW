@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RNA Molecular Weight Calculator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        .group:hover .group-hover-prose {
+            display: block;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div class="container mx-auto p-4 sm:p-6 lg:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl sm:text-4xl font-bold text-gray-900">RNA Molecular Weight Calculator</h1>
+            <p class="mt-2 text-md text-gray-600">Calculate the molecular weight of single-stranded RNA with modifications.</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Left Column: Input and Instructions -->
+            <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-md border border-gray-200">
+                <h2 class="text-xl font-semibold mb-4 text-gray-800 border-b pb-2">1. Enter RNA Sequence</h2>
+                <textarea id="rnaSequence" class="w-full h-48 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-150 ease-in-out" placeholder="Enter your RNA sequence here (e.g., AUGCCG or A[m6A]UGCCG)"></textarea>
+
+                 <!-- Instructions Section -->
+                <div class="mt-4 p-4 bg-gray-100 rounded-lg">
+                    <h3 class="font-semibold text-gray-700 mb-2">How to Format Your Sequence</h3>
+                    <ul class="list-disc list-inside text-sm text-gray-600 space-y-1">
+                        <li>Enter the 5' to 3' sequence using standard bases (A, U, C, G).</li>
+                        <li>The tool calculates for a 5'-monophosphate and 3'-hydroxyl terminus by default.</li>
+                        <li>For modified bases, use brackets `[]`. For example, for a Methyl-6-Adenosine, write `A[m6A]`.</li>
+                        <li>Make sure the symbol you use in the sequence (e.g., `m6A`) matches a symbol defined in the Modifications section.</li>
+                        <li>Any characters not in `AUCG[]` or defined as a custom modification will be flagged as an error.</li>
+                    </ul>
+                </div>
+
+                <!-- Action Button -->
+                <div class="mt-6 text-center">
+                    <button id="calculateBtn" class="bg-blue-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-300 transition-transform transform hover:scale-105">
+                        Calculate Molecular Weight
+                    </button>
+                </div>
+            </div>
+
+            <!-- Right Column: Modifications -->
+            <div class="bg-white p-6 rounded-xl shadow-md border border-gray-200">
+                <h2 class="text-xl font-semibold mb-4 text-gray-800 border-b pb-2">2. Define Modifications</h2>
+                
+                <!-- Common Modifications -->
+                <div>
+                    <h3 class="text-lg font-medium mb-3 text-gray-700">Common Modifications</h3>
+                    <div id="common-modifications" class="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-2">
+                        <!-- Checkboxes will be inserted here by JS -->
+                    </div>
+                </div>
+
+                <!-- Custom Modifications -->
+                <div class="mt-6">
+                    <h3 class="text-lg font-medium mb-3 text-gray-700">Custom Modifications</h3>
+                    <div id="custom-modifications-list" class="space-y-3">
+                        <!-- Custom mod fields will be added here -->
+                    </div>
+                    <button id="add-custom-mod-btn" class="mt-3 text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 w-full">
+                        + Add Custom Modification
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div id="results-container" class="mt-8 bg-white p-6 rounded-xl shadow-md border border-gray-200 hidden">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-800 border-b pb-3">Calculation Result</h2>
+            <div id="error-message" class="hidden p-4 mb-4 text-sm text-red-700 bg-red-100 rounded-lg" role="alert"></div>
+            <div id="success-message">
+                <div class="text-center mb-6">
+                    <p class="text-lg text-gray-600">Total Molecular Weight (g/mol)</p>
+                    <p id="total-mw" class="text-4xl font-bold text-blue-600 mt-1">0.00</p>
+                </div>
+                <div>
+                    <h3 class="text-xl font-semibold mb-3 text-gray-700">Breakdown:</h3>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Component</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Count</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Molecular Weight (g/mol)</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Contribution (g/mol)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="results-breakdown" class="bg-white divide-y divide-gray-200">
+                                <!-- Breakdown rows will be inserted here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // --- DATA ---
+        // Molecular weights of RNA nucleotide monophosphates (residue weight in a polymer)
+        // Formula: MW of Nucleoside Monophosphate - MW of H2O (18.015)
+        const MONOMER_WEIGHTS = {
+            'A': 329.21,
+            'U': 306.17,
+            'C': 305.18,
+            'G': 345.21,
+        };
+        // Weight of H2O to be added back to account for 5' and 3' ends (5'-H, 3'-OH)
+        const TERMINAL_WEIGHT = 18.015;
+
+        // Common modifications and their mass DELTA (change in mass)
+        const COMMON_MODS = {
+            'm6A': { name: 'N6-methyladenosine', delta: 14.027, info: 'Methylation on N6 of Adenine.' },
+            'm1A': { name: 'N1-methyladenosine', delta: 14.027, info: 'Methylation on N1 of Adenine.' },
+            'm5C': { name: '5-methylcytidine', delta: 14.027, info: 'Methylation on C5 of Cytosine.' },
+            'm5U': { name: '5-methyluridine (Thymidine)', delta: 14.027, info: 'Methylation on C5 of Uridine.' },
+            'Psi': { name: 'Pseudouridine', delta: 0.0, info: 'Isomer of Uridine. No mass change.' },
+            '2OMe': { name: "2'-O-methylation", delta: 14.027, info: "Methylation on the 2' hydroxyl of any nucleotide's ribose." },
+            'D': { name: 'Dihydrouridine', delta: 2.016, info: 'Addition of two hydrogens to Uridine.' }
+        };
+
+        // --- UI ELEMENTS ---
+        const sequenceInput = document.getElementById('rnaSequence');
+        const calculateBtn = document.getElementById('calculateBtn');
+        const resultsContainer = document.getElementById('results-container');
+        const totalMwEl = document.getElementById('total-mw');
+        const resultsBreakdownEl = document.getElementById('results-breakdown');
+        const errorMessageEl = document.getElementById('error-message');
+        const successMessageEl = document.getElementById('success-message');
+        const commonModsContainer = document.getElementById('common-modifications');
+        const customModsList = document.getElementById('custom-modifications-list');
+        const addCustomModBtn = document.getElementById('add-custom-mod-btn');
+
+        // --- INITIALIZATION ---
+        function initializeCommonMods() {
+            commonModsContainer.innerHTML = '';
+            for (const [symbol, mod] of Object.entries(COMMON_MODS)) {
+                const div = document.createElement('div');
+                div.className = 'flex items-center justify-between group relative';
+                div.innerHTML = `
+                    <div class="flex items-center">
+                      <input id="mod-${symbol}" data-symbol="${symbol}" type="checkbox" class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 common-mod-checkbox">
+                      <label for="mod-${symbol}" class="ml-2 block text-sm text-gray-900">${mod.name} (${symbol})</label>
+                    </div>
+                    <div class="text-xs text-blue-500 font-mono">${mod.delta.toFixed(3)}</div>
+                    <div class="absolute left-0 -top-8 w-64 bg-gray-800 text-white text-xs rounded py-1 px-2 group-hover-prose hidden z-10">
+                        ${mod.info}
+                    </div>
+                `;
+                commonModsContainer.appendChild(div);
+            }
+        }
+        
+        function addNewCustomModField() {
+            const id = `custom-mod-${customModsList.children.length}`;
+            const div = document.createElement('div');
+            div.className = 'custom-mod-item flex items-center space-x-2';
+            div.innerHTML = `
+                <input type="text" placeholder="Symbol (e.g., m7G)" class="w-1/3 p-2 border rounded text-sm focus:ring-1 focus:ring-blue-500">
+                <input type="number" step="any" placeholder="Mass Delta" class="w-1/3 p-2 border rounded text-sm focus:ring-1 focus:ring-blue-500">
+                <button class="remove-custom-mod-btn text-red-500 hover:text-red-700 font-bold p-1 rounded-full">&times;</button>
+            `;
+            customModsList.appendChild(div);
+            div.querySelector('.remove-custom-mod-btn').addEventListener('click', () => div.remove());
+        }
+
+        initializeCommonMods();
+        addNewCustomModField(); // Start with one empty custom field
+
+        // --- EVENT LISTENERS ---
+        addCustomModBtn.addEventListener('click', addNewCustomModField);
+        calculateBtn.addEventListener('click', handleCalculation);
+
+        // --- CORE LOGIC ---
+        function handleCalculation() {
+            resultsContainer.classList.remove('hidden');
+            errorMessageEl.classList.add('hidden');
+            successMessageEl.classList.remove('hidden');
+
+            try {
+                const sequence = sequenceInput.value.toUpperCase().trim();
+                if (!sequence) {
+                    throw new Error("RNA sequence cannot be empty.");
+                }
+
+                const modifications = getDefinedModifications();
+                const { breakdown, unknownSymbols } = parseAndCalculate(sequence, modifications);
+                
+                if (unknownSymbols.size > 0) {
+                   throw new Error(`Unrecognized symbols in sequence: ${[...unknownSymbols].join(', ')}. Please define them as custom modifications.`);
+                }
+
+                displayResults(breakdown);
+
+            } catch (error) {
+                successMessageEl.classList.add('hidden');
+                errorMessageEl.textContent = error.message;
+                errorMessageEl.classList.remove('hidden');
+            }
+        }
+        
+        function getDefinedModifications() {
+            const mods = {};
+            // Get common mods
+            document.querySelectorAll('.common-mod-checkbox:checked').forEach(cb => {
+                const symbol = cb.dataset.symbol;
+                if(symbol) {
+                   mods[symbol] = COMMON_MODS[symbol].delta;
+                }
+            });
+
+            // Get custom mods
+            document.querySelectorAll('.custom-mod-item').forEach(item => {
+                const symbolInput = item.querySelector('input[type="text"]');
+                const deltaInput = item.querySelector('input[type="number"]');
+                const symbol = symbolInput.value.trim().toUpperCase();
+                const delta = parseFloat(deltaInput.value);
+
+                if (symbol && !isNaN(delta)) {
+                    if (mods[symbol]) {
+                        console.warn(`Warning: Custom modification symbol '${symbol}' overrides a common modification.`);
+                    }
+                    mods[symbol] = delta;
+                }
+            });
+            return mods;
+        }
+
+        function parseAndCalculate(sequence, modifications) {
+            const breakdown = {
+                'A': { count: 0, mw: MONOMER_WEIGHTS.A },
+                'U': { count: 0, mw: MONOMER_WEIGHTS.U },
+                'C': { count: 0, mw: MONOMER_WEIGHTS.C },
+                'G': { count: 0, mw: MONOMER_WEIGHTS.G },
+                'Terminal Ends': { count: 1, mw: TERMINAL_WEIGHT }
+            };
+
+            const unknownSymbols = new Set();
+            let i = 0;
+            while (i < sequence.length) {
+                let char = sequence[i];
+                let modSymbol = '';
+                
+                if (sequence[i+1] === '[') {
+                    const closingBracketIndex = sequence.indexOf(']', i + 2);
+                    if (closingBracketIndex !== -1) {
+                        modSymbol = sequence.substring(i + 2, closingBracketIndex);
+                        i = closingBracketIndex; // Move index past the modification
+                    }
+                }
+                
+                if (MONOMER_WEIGHTS[char]) {
+                    breakdown[char].count++;
+                    if(modSymbol){
+                         if (modifications[modSymbol] !== undefined) {
+                            if (!breakdown[modSymbol]) {
+                                breakdown[modSymbol] = { count: 0, mw: modifications[modSymbol] };
+                            }
+                            breakdown[modSymbol].count++;
+                        } else {
+                            unknownSymbols.add(modSymbol);
+                        }
+                    }
+                } else if (char.trim() !== '' && char !== '[' && char !== ']') {
+                    unknownSymbols.add(char);
+                }
+                i++;
+            }
+            return { breakdown, unknownSymbols };
+        }
+
+        function displayResults(breakdown) {
+            resultsBreakdownEl.innerHTML = '';
+            let totalMw = 0;
+
+            for (const [key, value] of Object.entries(breakdown)) {
+                if (value.count > 0) {
+                    const contribution = value.count * value.mw;
+                    totalMw += contribution;
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${key}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${value.count}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${value.mw.toFixed(3)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${contribution.toFixed(3)}</td>
+                    `;
+                    resultsBreakdownEl.appendChild(row);
+                }
+            }
+            totalMwEl.textContent = totalMw.toFixed(3);
+        }
+    });
+</script>
+
+</body>
+</html>
